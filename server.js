@@ -17,6 +17,11 @@ const getGreeting = () => ["hie", "hii", "hello", "hiiii", "hyy"][Math.floor(Mat
 const getLocation = () => ["delhi", "mumbai", "jaipur", "pune", "bangalore", "indore", "chandigarh", "bhopal", "ahmedabad"][Math.floor(Math.random() * 9)];
 const getAge = () => Math.floor(Math.random() * (35 - 19 + 1)) + 19;
 
+// TRAP NAMES (Before Payment - No Varsha)
+const getTrapName = () => ["Pooja", "Neha", "Simran", "Shweta", "Kavya", "Riya", "Anjali", "Sneha"][Math.floor(Math.random() * 8)];
+// VIP NAMES (After Payment - Varsha Included)
+const getVipName = () => ["Pooja", "Neha", "Simran", "Shweta", "Kavya", "Riya", "Anjali", "Sneha", "Varsha Chouhan"][Math.floor(Math.random() * 9)];
+
 // ==========================================
 // 1. WARNING & WELCOME SCREEN
 // ==========================================
@@ -24,12 +29,9 @@ bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     
     const warningText = "⚠️ <b>ATTENTION!</b>\n\n<i>Please Talk Respectfully To everyone otherwise we Will block Your Account & Your Age must be 18+</i>";
-    
     const options = {
         parse_mode: 'HTML',
-        reply_markup: {
-            inline_keyboard: [[{ text: "✅ I Agree (18+)", callback_data: "agree_terms" }]]
-        }
+        reply_markup: { inline_keyboard: [[{ text: "✅ I Agree (18+)", callback_data: "agree_terms" }]] }
     };
     bot.sendMessage(chatId, warningText, options);
 });
@@ -37,72 +39,89 @@ bot.onText(/\/start/, (msg) => {
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     
-    // Agar Agree button dabaya gaya
     if (query.data === 'agree_terms') {
-        bot.deleteMessage(chatId, query.message.message_id).catch(() => {}); // Purana warning message hata dega
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {}); 
         
         if (!users[chatId]) {
-            users[chatId] = { state: 'NEW', isVip: false, vipExpiry: null, msgCount: 0, nudges: [] };
+            users[chatId] = { state: 'NEW', isVip: false, vipExpiry: null, msgCount: 0, nudges: [], richaTimeout: null, trapName: getTrapName(), vipName: "" };
         }
         
         const welcomeText = "💖 ✨ <b>WELCOME TO FIND PARTNER</b> ✨ 💖\n\n<i>Nayi chat shuru karne ke liye niche click karein 👇</i>";
         const options = {
             parse_mode: 'HTML',
-            reply_markup: {
-                inline_keyboard: [[{ text: "💞 Find GF 💘", callback_data: "find_gf" }]]
-            }
+            reply_markup: { inline_keyboard: [[{ text: "💞 Find GF 💘", callback_data: "find_gf" }]] }
         };
         bot.sendMessage(chatId, welcomeText, options);
         bot.answerCallbackQuery(query.id);
         return;
     }
 
-    const user = users[chatId] || { state: 'NEW', isVip: false, vipExpiry: null, msgCount: 0, nudges: [] };
-    users[chatId] = user;
+    const user = users[chatId];
+    if (!user) return;
 
     if (query.data === 'find_gf') {
         if (user.isVip && user.vipExpiry < Date.now()) {
             user.isVip = false;
             user.state = 'AWAITING_PAYMENT';
         }
-        bot.answerCallbackQuery(query.id);
         
+        // Prevent restarting if already in a chat
+        if (user.state === 'CHATTING_1' || user.state === 'CHATTING_2' || user.state === 'RICHA_CHAT') {
+            bot.answerCallbackQuery(query.id);
+            bot.sendMessage(chatId, "<i>Tum pehle se chat mein ho! Upar ladki ke message ka reply karo.</i>", { parse_mode: 'HTML' });
+            return;
+        }
+
+        bot.answerCallbackQuery(query.id);
         bot.sendMessage(chatId, "<i>Searching GF... ⏳💖</i>", { parse_mode: 'HTML' });
         bot.sendChatAction(chatId, 'typing');
         await sleep(3000); 
 
-        if (user.state === 'NEW' || user.state === 'PUJA_START' || user.state === 'AWAITING_PAYMENT') {
-            user.state = 'PUJA_CHATTING';
-            user.msgCount = 0;
+        // Luring Phase (Trap)
+        if (user.state === 'NEW' || user.state === 'AWAITING_PAYMENT') {
+            user.state = 'LURING';
             user.nudges = [];
-            bot.sendMessage(chatId, `<b>Pooja:</b> ${getGreeting()}`, { parse_mode: 'HTML' });
+            bot.sendMessage(chatId, `<b>${user.trapName}:</b> ${getGreeting()}`, { parse_mode: 'HTML' });
             
-            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'PUJA_CHATTING' && users[chatId].msgCount === 0) bot.sendMessage(chatId, "<b>Pooja:</b> kya name h tumhara", { parse_mode: 'HTML' }) }, 6000));
-            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'PUJA_CHATTING' && users[chatId].msgCount === 0) bot.sendMessage(chatId, "<b>Pooja:</b> ??", { parse_mode: 'HTML' }) }, 12000));
-            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'PUJA_CHATTING' && users[chatId].msgCount === 0) bot.sendMessage(chatId, "<b>Pooja:</b> hello are u there", { parse_mode: 'HTML' }) }, 18000));
+            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'LURING') bot.sendMessage(chatId, `<b>${user.trapName}:</b> name ?`, { parse_mode: 'HTML' }) }, 5000));
+            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'LURING') bot.sendMessage(chatId, `<b>${user.trapName}:</b> aap kaha se ho`, { parse_mode: 'HTML' }) }, 10000));
+            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'LURING') bot.sendMessage(chatId, `<b>${user.trapName}:</b> are u there`, { parse_mode: 'HTML' }) }, 15000));
+            user.nudges.push(setTimeout(() => { if (users[chatId].state === 'LURING') bot.sendMessage(chatId, `<b>${user.trapName}:</b> ??`, { parse_mode: 'HTML' }) }, 20000));
         } 
-        else if (user.state === 'SHWETA_START' && user.isVip) {
-            user.state = 'SHWETA_CHATTING';
+        
+        // VIP CHAT 1
+        else if (user.state === 'CHAT_1_START' && user.isVip) {
+            user.state = 'CHATTING_1';
             user.msgCount = 0;
-            bot.sendMessage(chatId, `<b>Shweta:</b> ${getGreeting()}`, { parse_mode: 'HTML' });
+            // Get new random name avoiding previous name
+            let newName = getVipName();
+            while(newName === user.vipName) newName = getVipName();
+            user.vipName = newName;
+            
+            bot.sendMessage(chatId, `<b>${user.vipName}:</b> ${getGreeting()}`, { parse_mode: 'HTML' });
         }
-        else if (user.state === 'SIMRAN_START' && user.isVip) {
-            user.state = 'SIMRAN_CHATTING';
+        
+        // VIP CHAT 2
+        else if (user.state === 'CHAT_2_START' && user.isVip) {
+            user.state = 'CHATTING_2';
             user.msgCount = 0;
-            bot.sendMessage(chatId, `<b>Simran:</b> ${getGreeting()}`, { parse_mode: 'HTML' });
+            let newName = getVipName();
+            while(newName === user.vipName) newName = getVipName();
+            user.vipName = newName;
+
+            bot.sendMessage(chatId, `<b>${user.vipName}:</b> ${getGreeting()}`, { parse_mode: 'HTML' });
         }
+        
+        // RICHA MANUAL HANDOFF
         else if (user.state === 'RICHA_HANDOFF' && user.isVip) {
-            bot.sendMessage(chatId, "<b>Richa:</b> hii main richa, aur btao kya chl ra h", { parse_mode: 'HTML' });
+            bot.sendMessage(chatId, "<b>Richa:</b> name", { parse_mode: 'HTML' });
             user.state = 'RICHA_CHAT';
-        }
-        else if (!user.isVip) {
-            sendPaywall(chatId);
         }
     }
 });
 
 // ==========================================
-// 2. SMART CHAT & KEYWORDS
+// 2. SMART CHAT, ABUSE FILTER & VARSHA LOGIC
 // ==========================================
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -115,6 +134,10 @@ bot.on('message', async (msg) => {
         const targetUserId = replyText.match(/\[ID: (\d+)\]/)?.[1];
         if (targetUserId) {
             bot.sendMessage(targetUserId, `<b>Richa:</b> ${text}`, { parse_mode: 'HTML' });
+            if (users[targetUserId] && users[targetUserId].richaTimeout) {
+                clearTimeout(users[targetUserId].richaTimeout);
+                users[targetUserId].richaTimeout = null;
+            }
         }
         return;
     }
@@ -127,39 +150,79 @@ bot.on('message', async (msg) => {
         user.nudges = [];
     }
 
-    if (user.state === 'PUJA_CHATTING' || user.state === 'SHWETA_CHATTING' || user.state === 'SIMRAN_CHATTING') {
+    // THE LURING TRAP (First Reply = Paywall)
+    if (user.state === 'LURING') {
+        user.state = 'AWAITING_PAYMENT';
+        sendPaywall(chatId);
+        return; 
+    }
+
+    // AI CHAT
+    if (user.state === 'CHATTING_1' || user.state === 'CHATTING_2') {
+        let textLower = text.toLowerCase();
+        let displayName = user.vipName;
+        
+        // --- ABUSE & AI FILTER ---
+        if (textLower.match(/\b(ai|chut|sex|chudegi|horny|boobs|dudh|size)\b/)) {
+            bot.sendMessage(chatId, "⚠️ <b>Last warning Otherwise we will block Your Account Talk Respectfully 🌹</b>", { parse_mode: 'HTML' });
+            return; 
+        }
+
         user.msgCount += 1;
         bot.sendChatAction(chatId, 'typing');
         await sleep(1500); 
 
-        if (user.state === 'PUJA_CHATTING' && user.msgCount >= 3) {
-            bot.sendMessage(chatId, "<i>*Pooja has left the chat.*</i> 💔", { parse_mode: 'HTML' });
-            setTimeout(() => sendPaywall(chatId), 1000);
-            user.state = 'AWAITING_PAYMENT';
-            return;
-        }
-        if (user.state === 'SHWETA_CHATTING' && user.msgCount >= 4) {
-            bot.sendMessage(chatId, "<i>*Shweta has left the chat.*</i> 💔\n\nDusri GF find karne ke liye wapas 'Find GF' dabayein.", { parse_mode: 'HTML' });
-            user.state = 'SIMRAN_START';
+        // HELPER FUNCTION: To handle leaving including Varsha's Insta Drop
+        const leaveChat = async (nextState) => {
+            if (displayName === "Varsha Chouhan") {
+                bot.sendMessage(chatId, `<b>Varsha Chouhan:</b> meri insta id lelo varsha_chouhan7268 yaha msg krna 😘`, { parse_mode: 'HTML' });
+                await sleep(1500);
+            }
+            bot.sendMessage(chatId, `<i>*${displayName} has left the chat.*</i> 💔\n\nDusri GF find karne ke liye wapas 'Find GF' dabayein.`, { parse_mode: 'HTML' });
+            user.state = nextState;
             sendFindGfButton(chatId);
-            return;
+        };
+
+        // Chat Limits (Varsha leaves at 15 for "thodi baat", others at 25)
+        let limit = displayName === "Varsha Chouhan" ? 15 : 25;
+        if (user.state === 'CHATTING_1' && user.msgCount >= limit) {
+            await leaveChat('CHAT_2_START'); return;
         }
-        if (user.state === 'SIMRAN_CHATTING' && user.msgCount >= 4) {
-            bot.sendMessage(chatId, "<i>*Simran has left the chat.*</i> 💔\n\nDusri GF find karne ke liye wapas 'Find GF' dabayein.", { parse_mode: 'HTML' });
-            user.state = 'RICHA_HANDOFF';
-            sendFindGfButton(chatId);
-            return;
+        if (user.state === 'CHATTING_2' && user.msgCount >= limit) {
+            await leaveChat('RICHA_HANDOFF'); return;
         }
 
-        let textLower = text.toLowerCase();
         let reply = "";
-        let persona = user.state.split('_')[0]; 
-        let displayName = persona === 'PUJA' ? 'Pooja' : (persona === 'SHWETA' ? 'Shweta' : 'Simran');
 
-        if (textLower.match(/(kese|kesi|hru|how are|kya hal|kya haal)/)) {
-            if (persona === 'PUJA') reply = "fine";
-            else if (persona === 'SHWETA') reply = "bdhiya";
-            else reply = "good";
+        // RULES
+        if (textLower.match(/(insta|ig|instagram|number|no\.|whatsapp|call|vc|video call|phone)/)) {
+            reply = ["naa", "nahi", "sorry", "abhi ni", "baad me"][Math.floor(Math.random()*5)];
+        }
+        else if (textLower.match(/(see u|see you|pic|photo|meet|milna|dekhna|dekhu|mil)/)) {
+            let action = Math.random();
+            if (action > 0.5) { 
+                reply = ["etni jaldi nahi", "nai", "nahi", "no", "baad me"][Math.floor(Math.random()*5)];
+            } else { 
+                await leaveChat(user.state === 'CHATTING_1' ? 'CHAT_2_START' : 'RICHA_HANDOFF'); return;
+            }
+        }
+        else if (textLower.match(/(height|lambi|lambai|tall)/)) {
+            reply = ["5'1\"", "5'2\"", "5'3\"", "5'4\"", "5'5\""][Math.floor(Math.random()*5)];
+        }
+        else if (textLower.match(/(hi|hello|hie|hy|hlo|helo|hey)/)) {
+            reply = "hmm";
+        }
+        else if (textLower.match(/(naam|name)/)) {
+            reply = displayName;
+        }
+        else if (textLower.match(/(married|shadi|shaadi)/)) {
+            reply = ["haa", "yes", "hm", "nahi", "no"][Math.floor(Math.random()*5)];
+        }
+        else if (textLower.match(/(bachhe|bache|kids|child|bacche|bachey)/)) {
+            reply = "ni h";
+        }
+        else if (textLower.match(/(kese|kesi|hru|how are|kya hal|kya haal)/)) {
+            reply = ["bdhiya", "good", "mst", "achi", "fine"][Math.floor(Math.random()*5)];
         }
         else if (textLower.match(/(kaha|from|where|jagah|city)/)) {
             reply = getLocation();
@@ -168,13 +231,25 @@ bot.on('message', async (msg) => {
             reply = getAge().toString();
         }
         else {
-            reply = ["hmm", "acha", "sahi h", "ohh", "nice"][Math.floor(Math.random()*5)];
+            reply = ["hmm", "acha", "sahi h", "ohh", "nice", "ok"][Math.floor(Math.random()*6)];
         }
 
         bot.sendMessage(chatId, `<b>${displayName}:</b> ${reply}`, { parse_mode: 'HTML' });
     }
+    
+    // ADMIN CHAT (RICHA)
     else if (user.state === 'RICHA_CHAT' && user.isVip) {
         bot.sendMessage(ADMIN_ID, `📩 <b>Message from User</b> [ID: ${chatId}]\n\n${text}`, { parse_mode: 'HTML' });
+        
+        if (user.richaTimeout) clearTimeout(user.richaTimeout);
+        
+        user.richaTimeout = setTimeout(() => {
+            if (users[chatId] && users[chatId].state === 'RICHA_CHAT') {
+                bot.sendMessage(chatId, "<i>*Richa has left the chat.*</i> 💔\n\nDusri GF find karne ke liye wapas 'Find GF' dabayein.", { parse_mode: 'HTML' });
+                users[chatId].state = 'CHAT_1_START'; 
+                sendFindGfButton(chatId);
+            }
+        }, 60000); 
     }
 });
 
@@ -203,7 +278,7 @@ bot.onText(/\/approve (.+)/, (msg, match) => {
     if (users[targetId]) {
         users[targetId].isVip = true;
         users[targetId].vipExpiry = Date.now() + (24 * 60 * 60 * 1000); 
-        users[targetId].state = 'SHWETA_START';
+        users[targetId].state = 'CHAT_1_START';
         bot.sendMessage(ADMIN_ID, `✅ User ${targetId} VIP activated for 24h.`);
         bot.sendMessage(targetId, "✅ <b>Payment Successful!</b> ✨\nVIP Pass Active for 24 hours.\n\nNayi chat ke liye niche click kare 👇", {
             parse_mode: 'HTML',
