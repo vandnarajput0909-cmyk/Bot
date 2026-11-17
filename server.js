@@ -7,12 +7,16 @@ const PAYMENT_LINK = 'https://razorpay.me/@VRConnect?amount=CVDUr6Uxp2FOGZGwAHnt
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is Live!'));
-app.listen(process.env.PORT || 3000, () => console.log('Web server running...'));
+const port = process.env.PORT || 3000;
+app.listen(port, '0.0.0.0', () => console.log(`Web server running on port ${port}...`));
 
 const bot = new TelegramBot(token, { polling: true });
-const users = {}; 
+bot.on("polling_error", (console.log));
+bot.on("error", (console.log));
 
+const users = {}; 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const getGreeting = () => ["hie", "hii", "hello", "hiiii", "hyy"][Math.floor(Math.random() * 5)];
 const getLocation = () => ["delhi", "mumbai", "jaipur", "pune", "bangalore", "indore", "chandigarh", "bhopal", "ahmedabad"][Math.floor(Math.random() * 9)];
 const getAge = () => Math.floor(Math.random() * (35 - 19 + 1)) + 19;
@@ -36,7 +40,6 @@ bot.onText(/\/start/, (msg) => {
 
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
-    
     if (users[chatId] && users[chatId].state === 'SUSPENDED') {
         bot.answerCallbackQuery(query.id);
         return;
@@ -45,7 +48,7 @@ bot.on('callback_query', async (query) => {
     if (query.data === 'agree_terms') {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {}); 
         if (!users[chatId]) {
-            users[chatId] = { state: 'NEW', isVip: false, vipExpiry: null, msgCount: 0, nudges: [], richaTimeout: null, trapName: getTrapName(), vipName: "", abuseCount: 0 };
+            users[chatId] = { state: 'NEW', isVip: false, vipExpiry: null, msgCount: 0, nudges: [], richaTimeout: null, trapName: getTrapName(), vipName: "", abuseCount: 0, unknownCount: 0 };
         }
         
         const welcomeText = "💖 ✨ <b>WELCOME TO FIND PARTNER</b> ✨ 💖\n\n<i>Nayi chat shuru karne ke liye niche click karein 👇</i>";
@@ -78,16 +81,12 @@ bot.on('callback_query', async (query) => {
         bot.sendChatAction(chatId, 'typing');
         await sleep(3000); 
 
-        // 🧠 LURING TRAP (Dynamic 4 to 8 Messages + Auto Leave)
+        // LURING TRAP
         if (user.state === 'NEW' || user.state === 'AWAITING_PAYMENT' || user.state === 'LURING') {
             user.state = 'LURING';
-            
-            if (user.nudges && user.nudges.length > 0) {
-                user.nudges.forEach(clearTimeout);
-            }
+            if (user.nudges && user.nudges.length > 0) user.nudges.forEach(clearTimeout);
             user.nudges = [];
             
-            // Randomly decide how many messages to send (between 4 and 8)
             let msgLimit = Math.floor(Math.random() * 5) + 4; 
             const trapMessages = ['hii', 'kaha se', 'name ??', '??', 'Kya hua', 'bologe kuch', 'are u there', 'busy ho kya'];
 
@@ -96,21 +95,20 @@ bot.on('callback_query', async (query) => {
                     if (users[chatId] && users[chatId].state === 'LURING') {
                         bot.sendMessage(chatId, `<b>${users[chatId].trapName}:</b> ${trapMessages[i]}`, { parse_mode: 'HTML' });
                     }
-                }, i * 5000)); // Har 5 second mein naya msg
+                }, i * 5000)); 
             }
 
-            // Msg limit khatam hone ke baad ladki apne aap left ho jayegi
             user.nudges.push(setTimeout(() => { 
                 if (users[chatId] && users[chatId].state === 'LURING') {
                     bot.sendMessage(chatId, `<i>*${users[chatId].trapName} has left the chat.*</i> 💔`, { parse_mode: 'HTML' });
-                    users[chatId].state = 'AWAITING_PAYMENT'; // Ab permanent lock
+                    users[chatId].state = 'AWAITING_PAYMENT'; 
                 }
             }, msgLimit * 5000 + 2000));
-
         } 
         else if (user.state === 'CHAT_1_START' && user.isVip) {
             user.state = 'CHATTING_1';
             user.msgCount = 0;
+            user.unknownCount = 0;
             let newName = getVipName();
             while(newName === user.vipName) newName = getVipName();
             user.vipName = newName;
@@ -119,6 +117,7 @@ bot.on('callback_query', async (query) => {
         else if (user.state === 'CHAT_2_START' && user.isVip) {
             user.state = 'CHATTING_2';
             user.msgCount = 0;
+            user.unknownCount = 0;
             let newName = getVipName();
             while(newName === user.vipName) newName = getVipName();
             user.vipName = newName;
@@ -156,20 +155,19 @@ bot.on('message', async (msg) => {
     const user = users[chatId];
     if (!user || user.state === 'SUSPENDED') return;
 
-    // YAHAN PAR 'LURING' STATE MEIN NUDGES CANCEL NAHI HONGE! (Ladki msg karti rahegi)
     if (user.state !== 'LURING' && user.nudges && user.nudges.length > 0) {
         user.nudges.forEach(clearTimeout);
         user.nudges = [];
     }
 
-    // PAYMENT SCREENSHOT LISTENER & PAYWALL POPUPS
+    // PAYMENT SCREENSHOT LISTENER
     if (user.state === 'AWAITING_PAYMENT' || user.state === 'LURING') {
         if (msg.photo || msg.document) {
             bot.sendMessage(ADMIN_ID, `🧾 <b>Payment Proof Received</b> from User [ID: ${chatId}]\nCheck the screenshot and use <code>/approve ${chatId}</code> to activate VIP.`, {parse_mode: 'HTML'});
             bot.forwardMessage(ADMIN_ID, chatId, msg.message_id);
             bot.sendMessage(chatId, "<i>✅ Screenshot received! Admin is verifying your payment. Please wait for approval... ⏳</i>", {parse_mode: 'HTML'});
         } else if (msg.text && !msg.text.startsWith('/')) {
-            sendPaywall(chatId); // Ladka type karega toh Paywall aayega, par ladki left hone tak msg krti rahegi!
+            sendPaywall(chatId); 
         }
         return;
     }
@@ -208,7 +206,8 @@ bot.on('message', async (msg) => {
             sendFindGfButton(chatId);
         };
 
-        let limit = displayName === "Varsha Chouhan" ? 15 : 25;
+        // CHAT LIMIT 25
+        let limit = displayName === "Varsha Chouhan" ? 20 : 25;
         if (user.state === 'CHATTING_1' && user.msgCount >= limit) {
             await leaveChat('CHAT_2_START'); return;
         }
@@ -217,14 +216,24 @@ bot.on('message', async (msg) => {
         }
 
         let reply = "";
+        let matched = true; 
 
-        if (textLower.match(/(see u|see you|pic|photo|meet|milna|dekhna|dekhu|mil)/)) {
-            let action = Math.random();
-            if (action > 0.5) { 
-                reply = ["etni jaldi nahi", "nai", "nahi", "no", "baad me"][Math.floor(Math.random()*5)];
-            } else { 
-                await leaveChat(user.state === 'CHATTING_1' ? 'CHAT_2_START' : 'RICHA_HANDOFF'); return;
-            }
+        // --- NEW SMART CHAT LOGIC ---
+        
+        // Photo / Pic / Meet request logic updated here
+        if (textLower.match(/(see u|see you|pic|photo|image|meet|milna|dekhna|dekhu|dekh skta|dekh sakti|mil)/)) {
+            reply = [
+                "nahi", 
+                "sorry", 
+                "I can't", 
+                "abhi to janti bhi nahi", 
+                "nahi pehle baat kro", 
+                "sorry baat kro pehle", 
+                "nahi de skti", 
+                "ni yr", 
+                "aap bhej do apna m ni de skti", 
+                "random har kisi ko konn dega yrr"
+            ][Math.floor(Math.random() * 10)];
         }
         else if (textLower.match(/(insta|\big\b|instagram|number|whatsapp|call|vc|video call|phone|mobile)/)) {
             reply = ["naa", "nahi", "sorry", "abhi ni", "baad me"][Math.floor(Math.random()*5)];
@@ -232,9 +241,35 @@ bot.on('message', async (msg) => {
         else if (textLower.match(/(height|haight|lambai|lambi|tall)/)) {
             reply = ["5'1\"", "5'2\"", "5'3\"", "5'4\"", "5'5\"", "5'6\""][Math.floor(Math.random()*6)];
         }
-        else if (textLower.match(/(kya kr|kkrh|kkrho|what do|kya kar|kuch kr|free ho)/)) {
+        
+        // Family Details
+        else if (textLower.match(/(ghr|ghar|family|parivar|kaun kaun|kon kon)/)) {
+            const sibling = ["chhota bhai", "bda bhai", "chhoti behn", "bdi behn"][Math.floor(Math.random()*4)];
+            reply = `mummy papa or ek ${sibling} h, aur aapke?`;
+        }
+        
+        // Current Activity (Kya kar rahi ho abhi)
+        else if (textLower.match(/(abhi kya|kya kr rhi|kya kar rahi|kkrh|kkrho|kuch kr|free ho)/)) {
             reply = ["kpde dhoye h", "kuch ni", "nothing", "free hu"][Math.floor(Math.random()*4)];
         }
+        
+        // Profession/Study (Kya karti ho)
+        else if (textLower.match(/(study|padhai|kya krti|kya karte|kaam kya|profession|job|kaam krti)/)) {
+            const studies = ["BSc", "B.Ed", "BA", "BCom", "MCom"];
+            const study = studies[Math.floor(Math.random() * studies.length)];
+            reply = [`study krri hu ${study}`, "silai krti hu", "pdhai puri krli h"][Math.floor(Math.random()*3)];
+        }
+        
+        // Relationship Proposal
+        else if (textLower.match(/(gf|girlfriend|friend|frnd|relation|relationship|dost|set|setting)/)) {
+            reply = ["time do thoda", "dekhte h", "kya krte ho", "sochungi", "nahi"][Math.floor(Math.random()*5)];
+        }
+        
+        // Past BF / Ex
+        else if (textLower.match(/(bf|boyfriend|boy friend|ex |kabhi bf|past relation)/)) {
+            reply = ["haa tha brkup hogya chhoro", "ex tha or btao", "ha tha aage ki baat krte h", "nahi", "ni"][Math.floor(Math.random()*5)];
+        }
+        
         else if (textLower.match(/\b(hi|hello|hie|hy|hlo|helo|hey)\b/)) {
             reply = ["hmm", "kaha se ho aap?", "age kya hai tumhari?", "aur btao", "hmm, aap batao"][Math.floor(Math.random()*5)];
         }
@@ -242,10 +277,7 @@ bot.on('message', async (msg) => {
             reply = displayName;
         }
         else if (textLower.match(/\b(single)\b/)) {
-            reply = ["haa", "yes", "hmm", "han", "haan"][Math.floor(Math.random()*5)];
-        }
-        else if (textLower.match(/\b(bf|boyfriend|boy friend)\b/)) {
-            reply = ["nahi", "no", "single hu", "naa"][Math.floor(Math.random()*4)];
+            reply = ["haa", "hmm", "ji", "haan"][Math.floor(Math.random()*4)];
         }
         else if (textLower.match(/\b(married|shadi|shaadi)\b/)) {
             reply = ["haa", "yes", "hm", "nahi", "no"][Math.floor(Math.random()*5)];
@@ -256,15 +288,35 @@ bot.on('message', async (msg) => {
         else if (textLower.match(/\b(kese|kesi|hru|how are|kya hal|kya haal)\b/)) {
             reply = ["bdhiya", "good", "mst", "achi", "fine"][Math.floor(Math.random()*5)];
         }
+        
+        // Where are you from + CROSS QUESTION
         else if (textLower.match(/\b(kaha|from|where|jagah|city)\b/)) {
-            reply = getLocation();
+            const askBack = ["aap kaha se?", "you?", "u?", "Aap?", "Tum?"][Math.floor(Math.random()*5)];
+            reply = `${getLocation()}, aur ${askBack}`;
         }
+        
         else if (textLower.match(/\b(age|saal|umar|old)\b/)) {
             reply = getAge().toString();
         }
+        
+        // AJEEB SAWAL / UNMATCHED TEXT LOGIC
         else {
-            reply = ["hmm", "acha", "sahi h", "ohh", "nice", "ok", "hm"][Math.floor(Math.random()*7)];
+            matched = false;
+            user.unknownCount = (user.unknownCount || 0) + 1;
+            
+            if (user.unknownCount >= 4) {
+                await leaveChat(user.state === 'CHATTING_1' ? 'CHAT_2_START' : 'RICHA_HANDOFF'); return;
+            }
+            
+            reply = [
+                "hmm", "acha", "sahi h", "ohh", "nice", "ok", "hm", 
+                "acha, wese aapki age kya h?", 
+                "hmm, aap study krte ho ya job?", 
+                "ok, ghr me kon kon h aapke?"
+            ][Math.floor(Math.random()*10)];
         }
+
+        if (matched) user.unknownCount = 0;
 
         bot.sendMessage(chatId, `<b>${displayName}:</b> ${reply}`, { parse_mode: 'HTML' });
     }
@@ -318,4 +370,4 @@ bot.onText(/\/approve (.+)/, (msg, match) => {
         });
     }
 });
-                                
+                 
