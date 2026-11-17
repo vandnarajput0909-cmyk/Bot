@@ -78,7 +78,7 @@ bot.on('callback_query', async (query) => {
         bot.sendChatAction(chatId, 'typing');
         await sleep(3000); 
 
-        // BUG-FREE LURING TRAP (Aggressive messaging)
+        // 🧠 LURING TRAP (Dynamic 4 to 8 Messages + Auto Leave)
         if (user.state === 'NEW' || user.state === 'AWAITING_PAYMENT' || user.state === 'LURING') {
             user.state = 'LURING';
             
@@ -87,23 +87,26 @@ bot.on('callback_query', async (query) => {
             }
             user.nudges = [];
             
-            const sendTrapMsg = (text, delay) => {
+            // Randomly decide how many messages to send (between 4 and 8)
+            let msgLimit = Math.floor(Math.random() * 5) + 4; 
+            const trapMessages = ['hii', 'kaha se', 'name ??', '??', 'Kya hua', 'bologe kuch', 'are u there', 'busy ho kya'];
+
+            for (let i = 0; i < msgLimit; i++) {
                 user.nudges.push(setTimeout(() => { 
                     if (users[chatId] && users[chatId].state === 'LURING') {
-                        bot.sendMessage(chatId, `<b>${users[chatId].trapName}:</b> ${text}`, { parse_mode: 'HTML' });
+                        bot.sendMessage(chatId, `<b>${users[chatId].trapName}:</b> ${trapMessages[i]}`, { parse_mode: 'HTML' });
                     }
-                }, delay));
-            };
+                }, i * 5000)); // Har 5 second mein naya msg
+            }
 
-            bot.sendMessage(chatId, `<b>${user.trapName}:</b> hii`, { parse_mode: 'HTML' });
-            sendTrapMsg('kaha gye', 4000);
-            sendTrapMsg('koi h', 8000);
-            sendTrapMsg('are u there', 12000);
-            sendTrapMsg('bolo', 16000);
-            sendTrapMsg('busy ho kya', 20000);
-            sendTrapMsg('bologe kuch', 24000);
-            sendTrapMsg('name', 28000);
-            sendTrapMsg('u from', 32000);
+            // Msg limit khatam hone ke baad ladki apne aap left ho jayegi
+            user.nudges.push(setTimeout(() => { 
+                if (users[chatId] && users[chatId].state === 'LURING') {
+                    bot.sendMessage(chatId, `<i>*${users[chatId].trapName} has left the chat.*</i> 💔`, { parse_mode: 'HTML' });
+                    users[chatId].state = 'AWAITING_PAYMENT'; // Ab permanent lock
+                }
+            }, msgLimit * 5000 + 2000));
+
         } 
         else if (user.state === 'CHAT_1_START' && user.isVip) {
             user.state = 'CHATTING_1';
@@ -153,29 +156,22 @@ bot.on('message', async (msg) => {
     const user = users[chatId];
     if (!user || user.state === 'SUSPENDED') return;
 
-    if (user.nudges && user.nudges.length > 0) {
+    // YAHAN PAR 'LURING' STATE MEIN NUDGES CANCEL NAHI HONGE! (Ladki msg karti rahegi)
+    if (user.state !== 'LURING' && user.nudges && user.nudges.length > 0) {
         user.nudges.forEach(clearTimeout);
         user.nudges = [];
     }
 
-    // PAYMENT SCREENSHOT LISTENER
-    if (user.state === 'AWAITING_PAYMENT') {
+    // PAYMENT SCREENSHOT LISTENER & PAYWALL POPUPS
+    if (user.state === 'AWAITING_PAYMENT' || user.state === 'LURING') {
         if (msg.photo || msg.document) {
             bot.sendMessage(ADMIN_ID, `🧾 <b>Payment Proof Received</b> from User [ID: ${chatId}]\nCheck the screenshot and use <code>/approve ${chatId}</code> to activate VIP.`, {parse_mode: 'HTML'});
             bot.forwardMessage(ADMIN_ID, chatId, msg.message_id);
             bot.sendMessage(chatId, "<i>✅ Screenshot received! Admin is verifying your payment. Please wait for approval... ⏳</i>", {parse_mode: 'HTML'});
         } else if (msg.text && !msg.text.startsWith('/')) {
-            sendPaywall(chatId);
+            sendPaywall(chatId); // Ladka type karega toh Paywall aayega, par ladki left hone tak msg krti rahegi!
         }
         return;
-    }
-
-    // THE LURING TRAP (Instant Popup on User Reply)
-    if (user.state === 'LURING') {
-        if (msg.text && msg.text.startsWith('/')) return; 
-        user.state = 'AWAITING_PAYMENT';
-        sendPaywall(chatId);
-        return; 
     }
 
     const text = msg.text;
@@ -322,4 +318,4 @@ bot.onText(/\/approve (.+)/, (msg, match) => {
         });
     }
 });
-                 
+    
